@@ -1,10 +1,15 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
 
 
-class StudentBase(BaseModel):
-    name: str
-    email: EmailStr
+class StudentProfileCreate(BaseModel):
+    student_id: str
+    roll_number: str | None = None
+    branch: str | None = None
 
 
-class StudentResponse(StudentBase):
+class StudentProfileResponse(BaseModel):
     id: int
+    user_id: int
+    student_id: str
+    roll_number: str | None
+    branch: str | None

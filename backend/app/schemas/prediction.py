@@ -1,50 +1,87 @@
+from datetime import datetime
+
 from pydantic import BaseModel, Field
-from typing import Optional
 
 
 class PredictionRequest(BaseModel):
-    attendance: float = Field(
+    F001_ATTENDANCE_PCT: float | None = Field(
+        default=None,
         ge=0,
         le=100,
-        description="Student attendance percentage",
     )
 
-    assignment_score: float = Field(
+    F002_ASSESSMENT_AVG_PCT: float | None = Field(
+        default=None,
         ge=0,
         le=100,
-        description="Assignment score",
     )
 
-    previous_score: float = Field(
+    F003_ASSIGNMENT_AVG_PCT: float | None = Field(
+        default=None,
         ge=0,
         le=100,
-        description="Previous academic score",
     )
 
-    study_hours: float = Field(
+    F004_ASSIGNMENT_COMPLETION_RATE: float | None = Field(
+        default=None,
         ge=0,
-        le=24,
-        description="Average study hours per day",
+        le=100,
     )
 
+    F005_QUIZ_AVG_PCT: float | None = Field(
+        default=None,
+        ge=0,
+        le=100,
+    )
 
-class PredictionResult(BaseModel):
-    predicted_score: Optional[float] = None
-    risk_level: str
-    confidence: Optional[float] = None
+    F006_QUIZ_COMPLETION_RATE: float | None = Field(
+        default=None,
+        ge=0,
+        le=100,
+    )
 
+    F007_LAB_AVG_PCT: float | None = Field(
+        default=None,
+        ge=0,
+        le=100,
+    )
 
-class NotificationResponse(BaseModel):
-    id: int
-    user_id: int
-    title: str
-    message: str
-    type: str
-    is_read: bool
-    created_at: str
+    F008_INTERNAL_ASSESSMENT_PCT: float | None = Field(
+        default=None,
+        ge=0,
+        le=100,
+    )
+
+    F009_PREVIOUS_SEM_PCT: float | None = Field(
+        default=None,
+        ge=0,
+        le=100,
+    )
+
+    F011_BACKLOG_COUNT: float | None = Field(
+        default=None,
+        ge=0,
+    )
+
+    F017_ASSESSMENT_PARTICIPATION_RATE: float | None = Field(
+        default=None,
+        ge=0,
+        le=100,
+    )
+
+    final_exam_max_marks: float | None = Field(
+        default=None,
+        gt=0,
+    )
 
 
 class PredictionResponse(BaseModel):
-    student_id: int
-    prediction: PredictionResult
-    notification: NotificationResponse
+    id: int
+    prediction_type: str
+    prediction_value: str
+
+    risk_level: str | None
+    confidence: float | None
+
+    model_version: str | None
+    created_at: datetime

@@ -5,14 +5,14 @@ from app.core.config import settings
 
 async def predict_with_ml(data: dict) -> dict:
     """
-    Sends student data to the separate ML service.
+    Sends engineered student features to the ML service.
     """
 
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
 
             response = await client.post(
-                f"{settings.ml_service_url}/predict",
+                f"{settings.ml_service_url}/api/v1/predictions/run",
                 json=data,
             )
 
@@ -21,21 +21,40 @@ async def predict_with_ml(data: dict) -> dict:
             result = response.json()
 
             return {
-                "predicted_score": result.get(
-                    "predicted_score"
+                "predicted_percentage": result.get(
+                    "predicted_percentage"
+                ),
+                "predicted_marks": result.get(
+                    "predicted_marks"
+                ),
+                "final_exam_max_marks": result.get(
+                    "final_exam_max_marks"
+                ),
+                "model_version": result.get(
+                    "model_version"
+                ),
+                "feature_set_version": result.get(
+                    "feature_set_version"
                 ),
                 "risk_level": result.get(
-                    "risk_level",
-                    "unknown",
+                    "risk_level"
                 ),
-                "confidence": result.get(
-                    "confidence"
+                "confidence_or_uncertainty": result.get(
+                    "confidence_or_uncertainty"
+                ),
+                "prediction_timestamp": result.get(
+                    "prediction_timestamp"
                 ),
             }
 
-    except httpx.HTTPError as error:
+    except httpx.HTTPStatusError as error:
+        raise RuntimeError(
+            f"ML service returned HTTP "
+            f"{error.response.status_code}: "
+            f"{error.response.text}"
+        ) from error
 
-        return {
-            "success": False,
-            "error": str(error),
-        }
+    except httpx.RequestError as error:
+        raise RuntimeError(
+            f"Unable to connect to ML service: {error}"
+        ) from error

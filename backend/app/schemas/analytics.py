@@ -22,6 +22,21 @@ class ClassAnalytics(BaseModel):
     average_attendance: float
     performance_distribution: PerformanceDistribution
 
+def calculate_previous_score(
+    scores: list[float],
+) -> float:
+    """
+    Calculates the student's previous average score
+    from completed assessments.
+    """
+
+    if not scores:
+        return 0.0
+
+    return round(
+        sum(scores) / len(scores),
+        2,
+    )
 
 class StudentAnalyticsResponse(BaseModel):
     student_id: int

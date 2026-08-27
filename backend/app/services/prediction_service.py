@@ -1,34 +1,54 @@
-def predict_student_performance(
-    attendance: float,
-    assignment_score: float,
-    previous_score: float,
-    study_hours: float,
-):
-    """
-    Temporary prediction service.
+from app.clients.ml_client import predict_with_ml
 
-    Later this function will load the trained ML model
-    and return the actual model prediction.
+
+async def predict_student_performance(
+    features: dict,
+    final_exam_max_marks: float | None = None,
+) -> dict:
+    """
+    Sends the final engineered feature set to the ML service
+    and returns the prediction result.
     """
 
-    score = (
-        attendance * 0.20
-        + assignment_score * 0.30
-        + previous_score * 0.30
-        + min(study_hours * 10, 100) * 0.20
+    data = {
+        **features,
+        "final_exam_max_marks": final_exam_max_marks,
+    }
+
+    result = await predict_with_ml(data)
+
+    predicted_percentage = result.get(
+        "predicted_percentage"
     )
 
-    score = round(score, 2)
-
-    if score >= 75:
-        risk_level = "low"
-    elif score >= 50:
-        risk_level = "medium"
-    else:
-        risk_level = "high"
+    if predicted_percentage is None:
+        raise RuntimeError(
+            "ML service did not return predicted_percentage"
+        )
 
     return {
-        "predicted_score": score,
-        "risk_level": risk_level,
-        "confidence": 0.80,
+        "predicted_percentage": float(
+            predicted_percentage
+        ),
+        "predicted_marks": result.get(
+            "predicted_marks"
+        ),
+        "final_exam_max_marks": result.get(
+            "final_exam_max_marks"
+        ),
+        "model_version": result.get(
+            "model_version"
+        ),
+        "feature_set_version": result.get(
+            "feature_set_version"
+        ),
+        "risk_level": result.get(
+            "risk_level"
+        ),
+        "confidence_or_uncertainty": result.get(
+            "confidence_or_uncertainty"
+        ),
+        "prediction_timestamp": result.get(
+            "prediction_timestamp"
+        ),
     }
