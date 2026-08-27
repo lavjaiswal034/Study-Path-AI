@@ -1,5 +1,6 @@
-from pydantic import BaseModel, Field
 from typing import List, Optional
+
+from pydantic import BaseModel, Field
 
 
 class RoadmapRequest(BaseModel):
@@ -11,7 +12,9 @@ class RoadmapRequest(BaseModel):
         default="unknown"
     )
 
-    weak_topics: List[str] = []
+    weak_topics: List[str] = Field(
+        default_factory=list
+    )
 
     study_hours_per_day: float = Field(
         default=2.0,
@@ -25,7 +28,9 @@ class RoadmapItem(BaseModel):
     priority: str
     estimated_hours: float
     description: str
-    resources: List[str] = []
+    resources: List[str] = Field(
+        default_factory=list
+    )
 
 
 class RoadmapResponse(BaseModel):

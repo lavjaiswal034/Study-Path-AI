@@ -13,6 +13,8 @@ class Settings(BaseSettings):
     ml_service_url: str = "http://localhost:8001"
     llm_service_url: str = "http://localhost:8002"
 
+    database_url: str = ""
+
     model_config = SettingsConfigDict(
         env_file=".env",
         extra="ignore"

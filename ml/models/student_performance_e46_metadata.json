@@ -1,0 +1,39 @@
+{
+  "model_version": "E46_V1",
+  "feature_set_version": "FS_E46_V1",
+  "model": "GradientBoosting_default",
+  "random_state": 20260814,
+  "preprocessing": "B_domain_aware_indicator",
+  "removed_feature": "F010_PREVIOUS_SGPA",
+  "target": "FINAL_EXAM_PERFORMANCE_PCT",
+  "prediction_output_range": [
+    0,
+    100
+  ],
+  "features": [
+    "F001_ATTENDANCE_PCT",
+    "F002_ASSESSMENT_AVG_PCT",
+    "F003_ASSIGNMENT_AVG_PCT",
+    "F004_ASSIGNMENT_COMPLETION_RATE",
+    "F005_QUIZ_AVG_PCT",
+    "F006_QUIZ_COMPLETION_RATE",
+    "F007_LAB_AVG_PCT",
+    "F008_INTERNAL_ASSESSMENT_PCT",
+    "F009_PREVIOUS_SEM_PCT",
+    "F011_BACKLOG_COUNT",
+    "F017_ASSESSMENT_PARTICIPATION_RATE"
+  ],
+  "feature_count": 11,
+  "fit_period": {
+    "start": "2026-06-05",
+    "end": "2029-11-17",
+    "rows": 22028
+  },
+  "locked_final_test": {
+    "start": "2029-11-18",
+    "end": "2029-12-11",
+    "rows": 4612
+  },
+  "training_policy": "Training and validation data used for final production fit after model selection. Locked final-test data excluded.",
+  "artifact_type": "production_model"
+}

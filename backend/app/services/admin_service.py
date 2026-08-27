@@ -1,59 +1,290 @@
+from sqlalchemy.orm import Session
+
+from app.models.user import User
+from app.models.teacher import TeacherProfile
+from app.models.student import StudentProfile
+from app.models.class_ import Class
+from app.models.subject import Subject
+from app.models.academic_year import AcademicYear
+from app.models.semester import Semester
+from app.models.branch import Branch
+from app.models.assignment import (
+    ClassTeacherSubjectAssignment,
+)
+
+
+# =========================================================
+# USER MANAGEMENT
+# =========================================================
+
+def get_all_users(
+    db: Session,
+) -> list[dict]:
+
+    users = (
+        db.query(User)
+        .order_by(User.id.asc())
+        .all()
+    )
+
+    return [
+        {
+            "id": user.id,
+            "name": user.name,
+            "email": user.email,
+            "role": user.role,
+            "approval_status": user.approval_status,
+            "is_active": user.is_active,
+            "created_at": user.created_at,
+        }
+        for user in users
+    ]
+
+
+def get_pending_users(
+    db: Session,
+) -> list[dict]:
+
+    users = (
+        db.query(User)
+        .filter(
+            User.approval_status == "PENDING"
+        )
+        .order_by(User.id.asc())
+        .all()
+    )
+
+    return [
+        {
+            "id": user.id,
+            "name": user.name,
+            "email": user.email,
+            "role": user.role,
+            "approval_status": user.approval_status,
+            "is_active": user.is_active,
+            "created_at": user.created_at,
+        }
+        for user in users
+    ]
+
+
+def approve_user(
+    db: Session,
+    user_id: int,
+) -> dict | None:
+
+    user = (
+        db.query(User)
+        .filter(User.id == user_id)
+        .first()
+    )
+
+    if not user:
+        return None
+
+    user.approval_status = "APPROVED"
+
+    db.commit()
+    db.refresh(user)
+
+    return {
+        "id": user.id,
+        "name": user.name,
+        "email": user.email,
+        "role": user.role,
+        "approval_status": user.approval_status,
+        "is_active": user.is_active,
+    }
+
+
+def reject_user(
+    db: Session,
+    user_id: int,
+) -> dict | None:
+
+    user = (
+        db.query(User)
+        .filter(User.id == user_id)
+        .first()
+    )
+
+    if not user:
+        return None
+
+    user.approval_status = "REJECTED"
+
+    db.commit()
+    db.refresh(user)
+
+    return {
+        "id": user.id,
+        "name": user.name,
+        "email": user.email,
+        "role": user.role,
+        "approval_status": user.approval_status,
+        "is_active": user.is_active,
+    }
+
+
+def set_user_active_status(
+    db: Session,
+    user_id: int,
+    is_active: bool,
+) -> dict | None:
+
+    user = (
+        db.query(User)
+        .filter(User.id == user_id)
+        .first()
+    )
+
+    if not user:
+        return None
+
+    user.is_active = is_active
+
+    db.commit()
+    db.refresh(user)
+
+    return {
+        "id": user.id,
+        "name": user.name,
+        "email": user.email,
+        "role": user.role,
+        "approval_status": user.approval_status,
+        "is_active": user.is_active,
+    }
+
+
+def delete_user(
+    db: Session,
+    user_id: int,
+) -> dict | None:
+
+    user = (
+        db.query(User)
+        .filter(User.id == user_id)
+        .first()
+    )
+
+    if not user:
+        return None
+
+    # Never allow admin account deletion
+    if user.role == "admin":
+        return None
+
+    result = {
+        "id": user.id,
+        "name": user.name,
+        "email": user.email,
+        "role": user.role,
+    }
+
+    db.delete(user)
+    db.commit()
+
+    return result
+
+
+def get_teacher_by_id(
+    db: Session,
+    teacher_id: int,
+) -> dict | None:
+
+    teacher = (
+        db.query(TeacherProfile)
+        .join(
+            User,
+            TeacherProfile.user_id == User.id,
+        )
+        .filter(
+            TeacherProfile.id == teacher_id,
+            User.role == "teacher",
+            User.approval_status == "APPROVED",
+            User.is_active.is_(True),
+        )
+        .first()
+    )
+
+    if not teacher:
+        return None
+
+    return {
+        "id": teacher.id,
+        "teacher_id": teacher.teacher_id,
+        "employee_id": teacher.employee_id,
+        "department": teacher.department,
+        "user_id": teacher.user_id,
+        "name": teacher.user.name,
+        "email": teacher.user.email,
+    }
+
+
+# =========================================================
+# ADMIN DASHBOARD
+# =========================================================
+
 def get_admin_dashboard_data(
-    users_db: dict,
-    classes_db: dict,
+    db: Session,
 ) -> dict:
 
-    users = list(users_db.values())
+    users = db.query(User).all()
 
     total_users = len(users)
 
     total_students = sum(
         1
         for user in users
-        if user.get("role") == "student"
+        if user.role == "student"
     )
 
     total_teachers = sum(
         1
         for user in users
-        if user.get("role") == "teacher"
+        if user.role == "teacher"
     )
 
     approved_users = sum(
         1
         for user in users
-        if user.get("approval_status") == "approved"
+        if user.approval_status == "APPROVED"
     )
 
     pending_users = sum(
         1
         for user in users
-        if user.get("approval_status") == "pending"
+        if user.approval_status == "PENDING"
     )
 
     rejected_users = sum(
         1
         for user in users
-        if user.get("approval_status") == "rejected"
+        if user.approval_status == "REJECTED"
     )
 
     active_users = sum(
         1
         for user in users
-        if user.get("is_active", True) is True
+        if user.is_active is True
     )
 
     inactive_users = sum(
         1
         for user in users
-        if user.get("is_active") is False
+        if user.is_active is False
+    )
+
+    total_classes = (
+        db.query(Class)
+        .count()
     )
 
     return {
         "total_users": total_users,
         "total_students": total_students,
         "total_teachers": total_teachers,
-        "total_classes": len(classes_db),
+        "total_classes": total_classes,
         "approved_users": approved_users,
         "pending_users": pending_users,
         "rejected_users": rejected_users,
@@ -62,180 +293,288 @@ def get_admin_dashboard_data(
     }
 
 
-def get_pending_users(
-    users_db: dict,
-) -> list[dict]:
-
-    pending_users = []
-
-    for user in users_db.values():
-
-        if user.get("approval_status") == "pending":
-            pending_users.append(user)
-
-    return pending_users
-def set_user_active_status(
-    users_db: dict,
-    user_id: int,
-    is_active: bool,
-) -> dict | None:
-
-    for email, user in users_db.items():
-
-        if user.get("id") == user_id:
-
-            user["is_active"] = is_active
-
-            users_db[email] = user
-
-            return user
-
-    return None
-
-def get_all_users(
-    users_db: dict,
-) -> list[dict]:
-
-    return list(users_db.values())
-
-def approve_user(
-    users_db: dict,
-    user_id: int,
-) -> dict | None:
-
-    for email, user in users_db.items():
-
-        if user.get("id") == user_id:
-
-            user["approval_status"] = "approved"
-
-            users_db[email] = user
-
-            return user
-
-    return None
-
-def delete_user(
-    users_db: dict,
-    user_id: int,
-) -> dict | None:
-
-    for email, user in list(users_db.items()):
-
-        if user.get("id") == user_id:
-
-            # Prevent deleting an admin account.
-            if user.get("role") == "admin":
-                return None
-
-            deleted_user = users_db.pop(email)
-
-            return deleted_user
-
-    return None
-def get_teacher_by_id(
-    users_db: dict,
-    teacher_id: int,
-) -> dict | None:
-
-    for user in users_db.values():
-
-        if (
-            user.get("id") == teacher_id
-            and user.get("role") == "teacher"
-            and user.get("approval_status") == "approved"
-            and user.get("is_active", True) is True
-        ):
-            return user
-
-    return None
+# =========================================================
+# CLASS MANAGEMENT
+# =========================================================
 
 def get_all_classes(
-    classes_db: dict,
+    db: Session,
 ) -> list[dict]:
 
-    return list(classes_db.values())
+    classes = (
+        db.query(Class)
+        .order_by(Class.id.asc())
+        .all()
+    )
+
+    result = []
+
+    for class_obj in classes:
+
+        assignments = (
+            db.query(
+                ClassTeacherSubjectAssignment
+            )
+            .filter(
+                ClassTeacherSubjectAssignment.class_id
+                == class_obj.id
+            )
+            .all()
+        )
+
+        result.append(
+            {
+                "class_id": class_obj.id,
+                "class_name": class_obj.name,
+                "academic_year_id": class_obj.academic_year_id,
+                "semester_id": class_obj.semester_id,
+                "branch_id": class_obj.branch_id,
+                "assignments": [
+                    {
+                        "assignment_id": assignment.id,
+                        "teacher_id": assignment.teacher_id,
+                        "subject_id": assignment.subject_id,
+                    }
+                    for assignment in assignments
+                ],
+            }
+        )
+
+    return result
+
 
 def create_class(
-    classes_db: dict,
-    class_id: int,
+    db: Session,
     class_name: str,
-    subject: str,
+    academic_year_id: int,
+    semester_id: int,
+    branch_id: int,
     teacher_id: int,
+    subject_id: int,
 ) -> dict:
 
-    class_data = {
-        "class_id": class_id,
-        "class_name": class_name,
-        "subject": subject,
-        "teacher_id": teacher_id,
-        "student_ids": [],
-    }
+    academic_year = (
+        db.query(AcademicYear)
+        .filter(
+            AcademicYear.id == academic_year_id
+        )
+        .first()
+    )
 
-    classes_db[class_id] = class_data
+    if not academic_year:
+        raise ValueError(
+            "Academic year not found"
+        )
 
-    return class_data
+    semester = (
+        db.query(Semester)
+        .filter(
+            Semester.id == semester_id
+        )
+        .first()
+    )
 
-def reject_user(
-    users_db: dict,
-    user_id: int,
-) -> dict | None:
+    if not semester:
+        raise ValueError(
+            "Semester not found"
+        )
 
-    for email, user in users_db.items():
+    branch = (
+        db.query(Branch)
+        .filter(
+            Branch.id == branch_id
+        )
+        .first()
+    )
 
-        if user.get("id") == user_id:
+    if not branch:
+        raise ValueError(
+            "Branch not found"
+        )
 
-            user["approval_status"] = "rejected"
+    teacher = (
+        db.query(TeacherProfile)
+        .join(
+            User,
+            TeacherProfile.user_id == User.id,
+        )
+        .filter(
+            TeacherProfile.id == teacher_id,
+            User.role == "teacher",
+            User.approval_status == "APPROVED",
+            User.is_active.is_(True),
+        )
+        .first()
+    )
 
-            users_db[email] = user
+    if not teacher:
+        raise ValueError(
+            "Teacher not found, not approved, or inactive"
+        )
 
-            return user
+    subject = (
+        db.query(Subject)
+        .filter(
+            Subject.id == subject_id
+        )
+        .first()
+    )
 
-    return None
-def delete_class(
-    classes_db: dict,
-    class_id: int,
-) -> dict | None:
+    if not subject:
+        raise ValueError(
+            "Subject not found"
+        )
 
-    if class_id not in classes_db:
-        return None
+    class_obj = Class(
+        name=class_name,
+        academic_year_id=academic_year_id,
+        semester_id=semester_id,
+        branch_id=branch_id,
+    )
 
-    deleted_class = classes_db.pop(class_id)
+    db.add(class_obj)
+    db.flush()
 
-    return deleted_class
+    assignment = ClassTeacherSubjectAssignment(
+        teacher_id=teacher_id,
+        class_id=class_obj.id,
+        subject_id=subject_id,
+    )
 
-def get_class_details(
-    classes_db: dict,
-    users_db: dict,
-    class_id: int,
-) -> dict | None:
+    db.add(assignment)
 
-    class_data = classes_db.get(class_id)
+    db.commit()
 
-    if not class_data:
-        return None
-
-    teacher = None
-
-    for user in users_db.values():
-        if user.get("id") == class_data.get("teacher_id"):
-            teacher = {
-                "id": user.get("id"),
-                "name": user.get("name"),
-                "email": user.get("email"),
-            }
-            break
+    db.refresh(class_obj)
 
     return {
-        "class_id": class_data.get("class_id"),
-        "class_name": class_data.get("class_name"),
-        "subject": class_data.get("subject"),
-        "teacher": teacher,
-        "student_ids": class_data.get(
-            "student_ids",
-            [],
-        ),
-        "student_count": len(
-            class_data.get("student_ids", [])
-        ),
+        "class_id": class_obj.id,
+        "class_name": class_obj.name,
+        "academic_year_id": class_obj.academic_year_id,
+        "semester_id": class_obj.semester_id,
+        "branch_id": class_obj.branch_id,
+        "teacher_id": teacher_id,
+        "subject_id": subject_id,
+    }
+
+
+def delete_class(
+    db: Session,
+    class_id: int,
+) -> dict | None:
+
+    class_obj = (
+        db.query(Class)
+        .filter(Class.id == class_id)
+        .first()
+    )
+
+    if not class_obj:
+        return None
+
+    assignments = (
+        db.query(
+            ClassTeacherSubjectAssignment
+        )
+        .filter(
+            ClassTeacherSubjectAssignment.class_id
+            == class_id
+        )
+        .all()
+    )
+
+    result = {
+        "class_id": class_obj.id,
+        "class_name": class_obj.name,
+    }
+
+    for assignment in assignments:
+        db.delete(assignment)
+
+    db.delete(class_obj)
+
+    db.commit()
+
+    return result
+
+
+def get_class_details(
+    db: Session,
+    class_id: int,
+) -> dict | None:
+
+    class_obj = (
+        db.query(Class)
+        .filter(Class.id == class_id)
+        .first()
+    )
+
+    if not class_obj:
+        return None
+
+    assignments = (
+        db.query(
+            ClassTeacherSubjectAssignment
+        )
+        .filter(
+            ClassTeacherSubjectAssignment.class_id
+            == class_id
+        )
+        .all()
+    )
+
+    assignment_data = []
+
+    for assignment in assignments:
+
+        teacher = (
+            db.query(TeacherProfile)
+            .filter(
+                TeacherProfile.id
+                == assignment.teacher_id
+            )
+            .first()
+        )
+
+        subject = (
+            db.query(Subject)
+            .filter(
+                Subject.id
+                == assignment.subject_id
+            )
+            .first()
+        )
+
+        assignment_data.append(
+            {
+                "assignment_id": assignment.id,
+                "teacher": (
+                    {
+                        "id": teacher.id,
+                        "teacher_id": teacher.teacher_id,
+                        "name": teacher.user.name,
+                        "email": teacher.user.email,
+                    }
+                    if teacher
+                    else None
+                ),
+                "subject": (
+                    {
+                        "id": subject.id,
+                        "name": subject.name,
+                        "code": subject.code,
+                    }
+                    if subject
+                    else None
+                ),
+            }
+        )
+
+    return {
+        "class_id": class_obj.id,
+        "class_name": class_obj.name,
+        "academic_year_id": class_obj.academic_year_id,
+        "semester_id": class_obj.semester_id,
+        "branch_id": class_obj.branch_id,
+        "assignments": assignment_data,
     }

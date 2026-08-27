@@ -1,5 +1,18 @@
 from fastapi import APIRouter, Depends
 
+from app.models.assignment import ClassTeacherSubjectAssignment
+from app.models.teacher import TeacherProfile
+from app.models.user import User
+from app.models.class_ import Class
+from app.models.subject import Subject
+
+from app.models.enrollment import StudentEnrollment
+from app.models.student import StudentProfile
+from app.schemas.teacher import (
+    TeacherAssignmentResponse,
+    TeacherStudentResponse,
+)
+
 from app.core.roles import require_role
 from app.services.teacher_service import (
     get_teacher_dashboard_data,
@@ -174,6 +187,96 @@ def class_analytics(
             },
         },
     }
+
+@router.get(
+    "/me/classes/{class_id}/students",
+    response_model=list[TeacherStudentResponse],
+)
+def get_my_class_students(
+    class_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+
+    if current_user.role != "teacher":
+        raise HTTPException(
+            status_code=403,
+            detail="Teacher access required",
+        )
+
+    teacher = (
+        db.query(TeacherProfile)
+        .filter(
+            TeacherProfile.user_id == current_user.id
+        )
+        .first()
+    )
+
+    if not teacher:
+        raise HTTPException(
+            status_code=404,
+            detail="Teacher profile not found",
+        )
+
+    assignment = (
+        db.query(ClassTeacherSubjectAssignment)
+        .filter(
+            ClassTeacherSubjectAssignment.teacher_id
+            == teacher.id,
+            ClassTeacherSubjectAssignment.class_id
+            == class_id,
+        )
+        .first()
+    )
+
+    if not assignment:
+        raise HTTPException(
+            status_code=403,
+            detail="You are not assigned to this class",
+        )
+
+    students = (
+        db.query(
+            StudentEnrollment,
+            StudentProfile,
+            User,
+        )
+        .join(
+            StudentProfile,
+            StudentEnrollment.student_id
+            == StudentProfile.id,
+        )
+        .join(
+            User,
+            StudentProfile.user_id
+            == User.id,
+        )
+        .filter(
+            StudentEnrollment.class_id
+            == class_id,
+            StudentEnrollment.enrollment_status
+            == "ACTIVE",
+        )
+        .order_by(
+            StudentProfile.roll_number.asc()
+        )
+        .all()
+    )
+
+    return [
+        TeacherStudentResponse(
+            student_id=enrollment.student_id,
+            student_code=student.student_id,
+            name=user.name,
+            email=user.email,
+            roll_number=student.roll_number,
+            branch=student.branch,
+            enrollment_status=enrollment.enrollment_status,
+        )
+        for enrollment, student, user in students
+    ]
+
+
 @router.get("/classes/{class_id}/weak-areas")
 def class_weak_areas(
     class_id: int,
@@ -272,6 +375,8 @@ def student_details(
             ],
         },
     }
+
+
 @router.get("/students/{student_id}/progress")
 def student_progress(
     student_id: int,
