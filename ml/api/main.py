@@ -1,0 +1,216 @@
+from __future__ import annotations
+
+from datetime import datetime, timezone
+from enum import Enum
+from typing import Optional
+
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel, ConfigDict, Field
+
+from api.prediction_service import PredictionService
+
+
+# ============================================================
+# APPLICATION
+# ============================================================
+
+app = FastAPI(
+    title="Student Performance Prediction API",
+    version="1.0.0",
+    description=(
+        "Production prediction API for the E46 student "
+        "performance model."
+    ),
+)
+
+prediction_service = PredictionService()
+
+
+# ============================================================
+# ENUMS
+# ============================================================
+
+class DataStatus(str, Enum):
+    TEACHER_VERIFIED = "TEACHER_VERIFIED"
+    STUDENT_ENTERED = "STUDENT_ENTERED"
+    SYSTEM_DERIVED = "SYSTEM_DERIVED"
+    UNVERIFIED = "UNVERIFIED"
+
+
+# ============================================================
+# REQUEST
+# ============================================================
+
+class PredictionRequest(BaseModel):
+    """
+    Validated engineered academic features.
+
+    Missing academic values are allowed because the production
+    E46 pipeline performs its approved missing-value handling.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    F001_ATTENDANCE_PCT: Optional[float] = Field(
+        default=None,
+        ge=0,
+        le=100,
+    )
+
+    F002_ASSESSMENT_AVG_PCT: Optional[float] = Field(
+        default=None,
+        ge=0,
+        le=100,
+    )
+
+    F003_ASSIGNMENT_AVG_PCT: Optional[float] = Field(
+        default=None,
+        ge=0,
+        le=100,
+    )
+
+    F004_ASSIGNMENT_COMPLETION_RATE: Optional[float] = Field(
+        default=None,
+        ge=0,
+        le=100,
+    )
+
+    F005_QUIZ_AVG_PCT: Optional[float] = Field(
+        default=None,
+        ge=0,
+        le=100,
+    )
+
+    F006_QUIZ_COMPLETION_RATE: Optional[float] = Field(
+        default=None,
+        ge=0,
+        le=100,
+    )
+
+    F007_LAB_AVG_PCT: Optional[float] = Field(
+        default=None,
+        ge=0,
+        le=100,
+    )
+
+    F008_INTERNAL_ASSESSMENT_PCT: Optional[float] = Field(
+        default=None,
+        ge=0,
+        le=100,
+    )
+
+    F009_PREVIOUS_SEM_PCT: Optional[float] = Field(
+        default=None,
+        ge=0,
+        le=100,
+    )
+
+    F011_BACKLOG_COUNT: Optional[float] = Field(
+        default=None,
+        ge=0,
+    )
+
+    F017_ASSESSMENT_PARTICIPATION_RATE: Optional[float] = Field(
+        default=None,
+        ge=0,
+        le=100,
+    )
+
+    final_exam_max_marks: Optional[float] = Field(
+        default=None,
+        gt=0,
+    )
+
+    data_status: DataStatus = DataStatus.UNVERIFIED
+
+    verified_data_used: bool = False
+
+
+# ============================================================
+# RESPONSE
+# ============================================================
+
+class PredictionResponse(BaseModel):
+    predicted_percentage: float
+    predicted_marks: Optional[float]
+    final_exam_max_marks: Optional[float]
+
+    grade_category: Optional[str]
+    risk_level: Optional[str]
+
+    confidence_or_uncertainty: Optional[float]
+
+    model_version: str
+    feature_set_version: str
+
+    prediction_timestamp: str
+
+    data_status: DataStatus
+    verified_data_used: bool
+
+
+# ============================================================
+# HEALTH
+# ============================================================
+
+@app.get("/health")
+def health():
+    return {
+        "status": "ok",
+        "model_version": prediction_service.model_version,
+        "feature_set_version": prediction_service.feature_set_version,
+    }
+
+
+# ============================================================
+# PREDICTION
+# ============================================================
+
+@app.post(
+    "/api/v1/predictions/run",
+    response_model=PredictionResponse,
+)
+def run_prediction(request: PredictionRequest):
+
+    features = request.model_dump(
+        exclude={
+            "final_exam_max_marks",
+            "data_status",
+            "verified_data_used",
+        }
+    )
+
+    try:
+        result = prediction_service.predict(
+            features=features,
+            final_exam_max_marks=request.final_exam_max_marks,
+        )
+
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        ) from exc
+
+    return PredictionResponse(
+        predicted_percentage=result["predicted_percentage"],
+        predicted_marks=result["predicted_marks"],
+        final_exam_max_marks=result["final_exam_max_marks"],
+
+        # These remain unset until their methodology/
+        # thresholds are formally finalized.
+        grade_category=None,
+        risk_level=None,
+        confidence_or_uncertainty=None,
+
+        model_version=result["model_version"],
+        feature_set_version=result["feature_set_version"],
+
+        # Always generated by the API in UTC.
+        prediction_timestamp=datetime.now(
+            timezone.utc
+        ).isoformat(),
+
+        data_status=request.data_status,
+        verified_data_used=request.verified_data_used,
+    )
